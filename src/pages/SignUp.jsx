@@ -1,53 +1,79 @@
-// src/pages/SignUp.jsx
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import "./SignUp.css";
-import { registerUser } from "../api/index"; // make sure this exists in src/api/index.js
 
-export default function SignUp() {
+import React, { useState } from "react";
+import "./signup.css";
+
+const API_URL = "https://v-nement-scientifique.onrender.com/api/auth/register";
+
+export default function Signup() {
   const [form, setForm] = useState({
-    nom: "",
-    prenom: "",
+    firstName: "",
+    lastName: "",
     email: "",
     password: "",
-    role: "Participant",
+    role: "participant", // default آمن
+    institution: "",
+    title: "",
+    phone: "",
   });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const navigate = useNavigate();
 
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  // القائمة الصحيحة تمامًا حسب الـ backend enum
   const roles = [
-    "Participant",
-    "Auteur",
-    "Organisateur",
-    "Comité Scientifique",
-    "Invité",
-    "Animateur Workshop",
+    { value: "participant", label: "Participant " },
+    { value: "communicant", label: "Communicant " },
+    { value: "event_organizer", label: "Organisateur de l'événement" },
+    { value: "scientific_committee", label: "Membre du Comité Scientifique" },
+    { value: "guest_speaker", label: "Conférencier Invité" },
+    { value: "workshop_animator", label: "Animateur Workshop" },
+    // 'super_admin' مش هنضيفه هنا للأمان (يُضاف يدويًا في الـ DB)
   ];
 
-  // Update form state on input change
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
 
-  // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError("");
-    try {
-      // Call API signup function
-      await registerUser(form);
 
-      // Success
-      alert("Inscription réussie ! Veuillez vous connecter.");
-      navigate("/login"); // Redirect to login page
-    } catch (err) {
-      console.log(err);
-      // Display error message from backend or default
-      const message = err?.message || err?.data?.message || err?.status || JSON.stringify(err);
-      setError(message || "Échec de l'inscription");
-    } finally {
-      setLoading(false);
+    const dataToSend = {
+      firstName: form.firstName.trim(),
+      lastName: form.lastName.trim(),
+      email: form.email.trim(),
+      password: form.password,
+      role: form.role,
+      institution: form.institution.trim()  ||  "Non spécifié",
+      title: form.title.trim()   ||"Non spécifié",
+      phone: form.phone.trim()   ||"Non spécifié",
+    };
+
+    console.log("Données envoyées au backend :", dataToSend);
+
+    try {
+      const response = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dataToSend),
+      });
+
+      const result = await response.json().catch(() => ({ message: "No JSON" }));
+
+      console.log("Statut:", response.status);
+      console.log("Réponse complète backend:", result);
+
+      if (!response.ok) {
+        // تحسين عرض الخطأ (يعرض الـ error حتى لو 500)
+        let errorMsg = result.error || result.message || "Erreur inconnue du serveur";
+        alert("خطأ في التسجيل:\n" + errorMsg);
+        return;
+      }
+
+      alert("Inscription réussie ! Vous serez redirigé vers la page de connexion.");
+      window.location.href = "/login"; // redirect تلقائي
+
+    } catch (error) {
+      console.error("Fetch error:", error);
+      alert("مشكلة في الاتصال بالسيرفر: " + error.message);
     }
   };
 
@@ -57,33 +83,30 @@ export default function SignUp() {
         <h2>Créer un compte</h2>
 
         <form className="signup-form" onSubmit={handleSubmit}>
-          {/* Nom */}
           <div className="form-group">
-            <label>Nom</label>
+            <label>Nom (firstName)</label>
             <input
               type="text"
-              name="nom"
-              value={form.nom}
+              name="firstName"
+              value={form.firstName}
               onChange={handleChange}
               placeholder="Votre nom"
               required
             />
           </div>
 
-          {/* Prénom */}
           <div className="form-group">
-            <label>Prénom</label>
+            <label>Prénom (lastName)</label>
             <input
               type="text"
-              name="prenom"
-              value={form.prenom}
+              name="lastName"
+              value={form.lastName}
               onChange={handleChange}
               placeholder="Votre prénom"
               required
             />
           </div>
 
-          {/* Email */}
           <div className="form-group">
             <label>Email</label>
             <input
@@ -91,12 +114,11 @@ export default function SignUp() {
               name="email"
               value={form.email}
               onChange={handleChange}
-              placeholder="Votre email"
+              placeholder="votre.email@example.com"
               required
             />
           </div>
 
-          {/* Password */}
           <div className="form-group">
             <label>Mot de passe</label>
             <input
@@ -104,35 +126,64 @@ export default function SignUp() {
               name="password"
               value={form.password}
               onChange={handleChange}
-              placeholder="Créer un mot de passe"
+              placeholder="Au moins 8 caractères"
               required
+              minLength="8"
             />
           </div>
 
-          {/* Role */}
-          <div className="form-group">
+doudou _4_, [03/01/2026 16:55]
+<div className="form-group">
             <label>Rôle</label>
-            <select name="role" value={form.role} onChange={handleChange}>
+            <select name="role" value={form.role} onChange={handleChange} required>
               {roles.map((role) => (
-                <option key={role} value={role}>
-                  {role}
+                <option key={role.value} value={role.value}>
+                  {role.label}
                 </option>
               ))}
             </select>
           </div>
 
-          {/* Submit button */}
-          <button type="submit" className="signup-btn" disabled={loading}>
-            {loading ? "Inscription..." : "S'inscrire"}
+          <div className="form-group">
+            <label>Établissement / Institution</label>
+            <input
+              type="text"
+              name="institution"
+              value={form.institution}
+              onChange={handleChange}
+              placeholder="Université, entreprise, etc."
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Titre (Dr., Pr., Mr., etc.)</label>
+            <input
+              type="text"
+              name="title"
+              value={form.title}
+              onChange={handleChange}
+              placeholder="Titre académique ou professionnel"
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Téléphone</label>
+            <input
+              type="tel"
+              name="phone"
+              value={form.phone}
+              onChange={handleChange}
+              placeholder="+213 XX XXX XXX"
+            />
+          </div>
+
+          <button type="submit" className="signup-btn">
+            S'inscrire
           </button>
         </form>
 
-        {/* Error message */}
-        {error && <p className="error-message">{error}</p>}
-
-        {/* Link to login */}
         <div className="signup-login">
-          Vous avez déjà un compte ? <Link to="/login">Connexion</Link>
+          Vous avez déjà un compte ? <a href="/login">Connexion</a>
         </div>
       </div>
     </div>
