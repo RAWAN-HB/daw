@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
 import { Save, Send } from "lucide-react";
-import { getMyProposals, submitProposal } from "../api/index"; // <-- correct path
+import { getMyProposals } from "../api/index";
 import "./submission.css";
 
-
-export default function SubmissionForm() {
+export default function SubmissionForm({ eventId }) {
   const [formData, setFormData] = useState({
     title: "",
     type: "orale",
@@ -14,16 +13,18 @@ export default function SubmissionForm() {
     coAuthors: "",
   });
 
+  const [files, setFiles] = useState([]);
   const [myProposals, setMyProposals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // Load existing proposals on mount
+  // Load existing proposals
   useEffect(() => {
     async function fetchProposals() {
       try {
-        const res = await getMyProposals();
-        setMyProposals(res.data); // adjust if API response is { data: [...] }
+        const token = localStorage.getItem("token");
+        const res = await getMyProposals(token);
+        setMyProposals(res.data);
       } catch (err) {
         console.error("Failed to load proposals:", err);
       } finally {
@@ -33,30 +34,74 @@ export default function SubmissionForm() {
     fetchProposals();
   }, []);
 
+  const handleFileChange = (e) => {
+    setFiles(Array.from(e.target.files));
+  };
+
   const handleSubmit = async (e, isDraft) => {
     e.preventDefault();
-    setSubmitting(true);
+    const token = localStorage.getItem("token");
+    if (!token) {
+      alert("You are not logged in!");
+      return;
+    }
+
+    if (!formData.title || !formData.abstract) {
+      alert("Please enter title and abstract.");
+      return;
+    }
+
+    if (!isDraft && files.length === 0) {
+      alert("Select at least one file for submission.");
+      return;
+    }
+
+    const data = new FormData();
+    data.append("title", formData.title);
+    data.append("abstract", formData.abstract);
+    data.append("type", formData.type);
+    data.append("theme", formData.theme);
+    data.append("keywords", formData.keywords);
+    data.append("coAuthors", formData.coAuthors);
+    data.append("draft", isDraft);
+    if (eventId) data.append("eventId", eventId);
+    files.forEach((file) => data.append("files", file));
 
     try {
-      await submitProposal({ ...formData, draft: isDraft });
-      alert(isDraft ? "Draft saved!" : "Proposal submitted successfully!");
-      // refresh proposals list
-      const res = await getMyProposals();
-      setMyProposals(res.data);
-      // reset form if submitted (not draft)
-      if (!isDraft) {
-        setFormData({
-          title: "",
-          type: "orale",
-          theme: "",
-          abstract: "",
-          keywords: "",
-          coAuthors: "",
-        });
+      setSubmitting(true);
+      const response = await fetch(
+        "https://v-nement-scientifique.onrender.com/cfp/submit",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: data,
+        }
+      );
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.message || "Failed to submit proposal");
       }
+
+      alert(isDraft ? "Draft saved!" : "Proposal submitted successfully!");
+      setFormData({
+        title: "",
+        type: "orale",
+        theme: "",
+        abstract: "",
+        keywords: "",
+        coAuthors: "",
+      });
+      setFiles([]);
+
+      // Refresh proposals
+      const res = await getMyProposals(token);
+      setMyProposals(res.data);
     } catch (err) {
       console.error("Submission failed:", err);
-      alert("Failed to submit proposal. Check console for details.");
+      alert(err.message || "Failed to submit proposal");
     } finally {
       setSubmitting(false);
     }
@@ -157,10 +202,6 @@ export default function SubmissionForm() {
               }
               required
             />
-            <div className="helper">
-              <span>{formData.abstract.length} characters</span>
-              <span>Recommended: 250–300 words</span>
-            </div>
           </div>
 
           {/* Keywords */}
@@ -190,10 +231,26 @@ export default function SubmissionForm() {
             />
           </div>
 
-          {/* Info */}
-          <div className="info-box">
-            <strong>ℹ️ Important Information:</strong> All proposals
-            will be evaluated by the scientific committee.
+          {/* File Upload */}
+          <div className="form-group">
+            <label>
+              Upload Files <span>*</span>
+            </label>
+            <input
+              type="file"
+              multiple
+              onChange={handleFileChange}
+              accept=".pdf,.docx,.pptx,.jpg,.png"
+            />
+            {files.length > 0 && (
+              <div className="selected-files">
+                {files.map((file, i) => (
+                  <p key={i}>
+                    {file.name} ({(file.size / 1024).toFixed(1)} KB)
+                  </p>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Actions */}
@@ -217,7 +274,7 @@ export default function SubmissionForm() {
           </div>
         </form>
 
-        {/* List of my proposals */}
+        {/* My Proposals */}
         <div className="my-proposals">
           <h3>My Proposals</h3>
           {myProposals.length === 0 ? (

@@ -1,53 +1,87 @@
-// src/api/index.js
 import axios from "axios";
 
 // ==========================
 // Base Axios instance
 // ==========================
-const API_BASE_URL = "https://v-nement-scientifique.onrender.com"; // your backend URL
+const API_BASE_URL = "https://v-nement-scientifique.onrender.com/api"; // include /api if backend requires it
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: { "Content-Type": "application/json" },
 });
-
+// Evaluations API
 // ==========================
-// Axios Interceptor (ADD TOKEN)
+export const getAssignedEvaluations = async () => {
+  const response = await api.get("/evaluations/assigned");
+  return response.data;
+};
+// ==========================
+// Axios Interceptor (Add TOKEN)
 // ==========================
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  // Skip token for login and register
+  if (!config.headers.skipAuth) {
+    const token = localStorage.getItem("token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  } else {
+    // Remove skipAuth from headers
+    delete config.headers.skipAuth;
   }
   return config;
 });
 
-
 // ==========================
 // Auth API
 // ==========================
+
+// LOGIN (skip token)
 export const loginUser = async (email, password) => {
-  const response = await api.post("/auth/login", { email, password });
+  try {
+    const response = await api.post(
+      "/auth/login",
+      { email, password },
+      { headers: { skipAuth: true } } // <-- skip sending token
+    );
 
-  if (response.data.token) {
-    localStorage.setItem("token", response.data.token);
+    if (response.data.token) {
+      localStorage.setItem("token", response.data.token);
+    }
+
+    return response.data;
+  } catch (err) {
+    console.error("loginUser error:", err.response?.data || err.message);
+    throw err.response?.data || { message: "Login failed" };
   }
-
-  return response.data;
 };
 
+// REGISTER (skip token)
 export const registerUser = async (userData) => {
-  const response = await api.post("/auth/register", userData);
-  return response.data;
+  try {
+    const response = await api.post("/auth/register", userData, {
+      headers: { skipAuth: true },
+    });
+    return response.data;
+  } catch (err) {
+    console.error("registerUser error:", err.response?.data || err.message);
+    throw err.response?.data || { message: "Registration failed" };
+  }
 };
 
+// GET profile (needs token)
 export const getProfile = async () => {
   const response = await api.get("/auth/profile");
   return response.data;
 };
 
+// LOGOUT helper
+export const logoutUser = () => {
+  localStorage.removeItem("token");
+};
+
 // ==========================
-// Proposals API
+// Proposals API (needs token)
 // ==========================
 export const getMyProposals = async () => {
   const response = await api.get("/cfp/my-proposals");
@@ -56,14 +90,6 @@ export const getMyProposals = async () => {
 
 export const submitProposal = async (data) => {
   const response = await api.post("/cfp/submit", data);
-  return response.data;
-};
-
-// ==========================
-// Evaluations API
-// ==========================
-export const getAssignedEvaluations = async () => {
-  const response = await api.get("/evaluations/assigned");
   return response.data;
 };
 
@@ -90,8 +116,7 @@ export const deleteFile = async (fileId) => {
 };
 
 export const downloadFile = async (fileId) => {
-  const response = await api.get(`/files/${fileId}`, {
-    responseType: "blob",
-  });
+  const response = await api.get(`/files/${fileId}`, { responseType: "blob" });
   return response.data;
 };
+

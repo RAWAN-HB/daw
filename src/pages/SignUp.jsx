@@ -44,7 +44,8 @@ export default function SignUp() {
     } catch (err) {
       console.log(err);
       // Display error message from backend or default
-      setError(err.data?.message || "Échec de l'inscription");
+      const message = err?.message || err?.data?.message || err?.status || JSON.stringify(err);
+      setError(message || "Échec de l'inscription");
     } finally {
       setLoading(false);
     }

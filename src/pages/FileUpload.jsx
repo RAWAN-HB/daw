@@ -10,69 +10,59 @@ import {
   AlertCircle,
 } from "lucide-react";
 import "./FileUpload.css";
-import { getProposalFiles, uploadFile, deleteFile, downloadFile } from "../api/index";
+import { submitProposal, getMyProposals } from "../api/index";
 
-export function FileUpload({ proposalId }) {
+export function FileUpload({ eventId }) {
   const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [files, setFiles] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  // Fetch files when component mounts or proposalId changes
-  useEffect(() => {
-    if (!proposalId) return;
-    fetchFiles();
-  }, [proposalId]);
-
-  const fetchFiles = async () => {
+  // Fetch current user's proposals and files
+  const fetchProposals = async () => {
     try {
-      const res = await getProposalFiles(proposalId);
-      setUploadedFiles(res.data); // assumes backend returns an array of files
+      const res = await getMyProposals();
+      if (res.data && res.data.length > 0) {
+        // Show files of the first proposal (or modify if you want multiple proposals)
+        setUploadedFiles(res.data[0].files || []);
+      } else {
+        setUploadedFiles([]);
+      }
     } catch (err) {
       console.error(err);
-      alert("Failed to load files.");
+      alert("Failed to load proposals.");
     }
   };
 
-  const handleUpload = async (e) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  useEffect(() => {
+    fetchProposals();
+  }, []);
+
+  const handleFileChange = (e) => {
+    setFiles(Array.from(e.target.files));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (files.length === 0) {
+      alert("Please select at least one file.");
+      return;
+    }
 
     const formData = new FormData();
-    for (let file of files) {
-      formData.append("files", file);
-    }
+    formData.append("eventId", eventId); // backend needs eventId
+    files.forEach((file) => formData.append("files", file));
 
     try {
-      await uploadFile(proposalId, formData);
-      alert("Files uploaded successfully!");
-      fetchFiles(); // refresh the list
+      setLoading(true);
+      await submitProposal(formData);
+      alert("Proposal submitted successfully!");
+      setFiles([]);
+      fetchProposals();
     } catch (err) {
-      console.error(err);
-      alert("Failed to upload files.");
-    }
-  };
-
-  const handleDelete = async (fileId) => {
-    if (!confirm("Delete this file?")) return;
-    try {
-      await deleteFile(fileId);
-      setUploadedFiles(uploadedFiles.filter((f) => f.id !== fileId));
-    } catch (err) {
-      console.error(err);
-      alert("Failed to delete file.");
-    }
-  };
-
-  const handleDownload = async (fileId, fileName) => {
-    try {
-      const res = await downloadFile(fileId);
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", fileName);
-      document.body.appendChild(link);
-      link.click();
-    } catch (err) {
-      console.error(err);
-      alert("Failed to download file.");
+      console.error("Submit proposal failed:", err);
+      alert(err.message || "Failed to submit proposal.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -90,32 +80,47 @@ export function FileUpload({ proposalId }) {
     }
   };
 
+  const handleDownload = (url, fileName) => {
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", fileName);
+    document.body.appendChild(link);
+    link.click();
+  };
+
   return (
     <div className="file-upload space-y-6">
-      {/* Upload Area */}
+      {/* Proposal Submission Card */}
       <div className="upload-area card">
         <div className="upload-header">
-          <h2>Upload Files</h2>
-          <p>Add your presentations, articles and posters for the event</p>
+          <h2>Submit Proposal</h2>
+          <p>Add your proposal title, abstract, and files for the event</p>
         </div>
 
-        <div className="upload-dropzone">
-          <div className="upload-icon">
-            <Upload size={32} />
+        <form onSubmit={handleSubmit} className="proposal-form">
+          <div className="upload-dropzone">
+            <div className="upload-icon">
+              <Upload size={32} />
+            </div>
+            <p>Drag and drop your files here</p>
+            <p>or click to browse your files</p>
+            <label className="upload-button">
+              Select Files
+              <input
+                type="file"
+                multiple
+                onChange={handleFileChange}
+                hidden
+                accept=".pdf,.docx,.pptx,.jpg,.png"
+              />
+            </label>
           </div>
-          <p>Drag and drop your files here</p>
-          <p>or click to browse your files</p>
-          <label className="upload-button">
-            Select Files
-            <input
-              type="file"
-              multiple
-              onChange={handleUpload}
-              hidden
-              accept=".pdf,.docx,.pptx,.jpg,.png"
-            />
-          </label>
-        </div>
+
+          <p>{files.length} file(s) selected</p>
+          <button type="submit" disabled={loading} className="login-btn">
+            {loading ? "Submitting..." : "Submit Proposal"}
+          </button>
+        </form>
       </div>
 
       {/* Uploaded Files List */}
@@ -144,27 +149,19 @@ export function FileUpload({ proposalId }) {
               <div className="file-actions">
                 {file.status === "Validated" ? (
                   <span className="file-status valid">
-                    <CheckCircle size={16} />
-                    Validated
+                    <CheckCircle size={16} /> Validated
                   </span>
                 ) : (
                   <span className="file-status pending">
-                    <AlertCircle size={16} />
-                    {file.status}
+                    <AlertCircle size={16} /> {file.status}
                   </span>
                 )}
 
                 <button
                   className="btn-icon"
-                  onClick={() => handleDownload(file.id, file.name)}
+                  onClick={() => handleDownload(file.url, file.name)}
                 >
                   <Download size={20} />
-                </button>
-                <button
-                  className="btn-icon delete"
-                  onClick={() => handleDelete(file.id)}
-                >
-                  <Trash2 size={20} />
                 </button>
               </div>
             </div>

@@ -10,6 +10,7 @@ import Home from './pages/Home';
 import Events from './pages/Events';
 import Participant from './pages/Participant';
 
+
 export default function App() {
   return (
     <Router>
@@ -28,6 +29,8 @@ export default function App() {
             <Route path="/submit" element={<Submission />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<SignUp />} />
+            <Route path="/cs" element={<App />} />
+
           </Routes>
         </main>
 
